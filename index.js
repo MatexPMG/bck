@@ -1,6 +1,5 @@
 const express = require('express');
-const fs = require('fs');
-const fetch = require('node-fetch'); // make sure node-fetch@2 is installed
+const fetch = require('node-fetch'); // node-fetch@2
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,37 +10,8 @@ app.use(express.static('public'));
 // GraphQL API endpoint
 const url = 'https://emma.mav.hu/otp2-backend/otp/routers/default/index/graphql';
 
-// Queries
-const VEHICLES = {
-  query: `
-    {
-      vehiclePositions(
-        swLat: 45.74573822516341,
-        swLon: 16.21031899279769,
-        neLat: 48.56368661139524,
-        neLon: 22.906741803509043,
-        modes: [RAIL, TRAMTRAIN]
-      ) {
-        vehicleId
-        lat
-        lon
-        heading
-        speed
-        lastUpdated
-        trip {
-          tripHeadsign
-          tripShortName
-        }
-        nextStop {
-          arrivalDelay
-        }
-      }
-    }
-  `,
-  variables: {}
-};
-
-const TIMES = {
+// Timetables query
+const TIMETABLES_QUERY = {
   query: `
     {
       vehiclePositions(
@@ -89,8 +59,12 @@ const TIMES = {
   variables: {}
 };
 
-// Fetch functions
-async function fetchAndWrite(queryObj, fileName) {
+// In-memory cache
+let latestData = null;
+let lastUpdated = null;
+
+// Fetch timetables from API
+async function fetchTimetables() {
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -98,31 +72,37 @@ async function fetchAndWrite(queryObj, fileName) {
         'User-Agent': 'Mozilla/5.0',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(queryObj)
+      body: JSON.stringify(TIMETABLES_QUERY)
     });
 
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
-    const text = await res.text();
-    const size = Buffer.byteLength(text, 'utf8') / 1000;
-    const data = JSON.parse(text);
-
-    fs.writeFile(`public/${fileName}`, JSON.stringify(data, null, 2), err => {
-      if (err) console.error(`${fileName} write ERROR:`, err);
-      else console.log(`${fileName} OK, downloaded ${size.toFixed(1)} kB`);
-    });
+    const data = await res.json();
+    latestData = data;
+    lastUpdated = new Date().toISOString();
+    console.log(`[${lastUpdated}] Timetables updated`);
   } catch (err) {
-    console.error(`${fileName} Request error:`, err);
+    console.error('Error fetching timetables:', err);
   }
 }
 
 // Initial fetch
-fetchAndWrite(VEHICLES, 'trains.json');
-fetchAndWrite(TIMES, 'timetables.json');
+fetchTimetables();
 
-// Intervals
-setInterval(() => fetchAndWrite(VEHICLES, 'trains.json'), 15 * 1000);
-setInterval(() => fetchAndWrite(TIMES, 'timetables.json'), 60 * 1000);
+// Refresh every 60 seconds
+setInterval(fetchTimetables, 60 * 1000);
+
+// API endpoint
+app.get('/api/timetables', (req, res) => {
+  if (latestData) {
+    res.json({
+      timestamp: lastUpdated,
+      data: latestData
+    });
+  } else {
+    res.status(503).json({ error: 'Data not available yet' });
+  }
+});
 
 // Start server
 app.listen(port, () => {
