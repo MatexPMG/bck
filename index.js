@@ -1,16 +1,15 @@
 const express = require('express');
-const fetch = require('node-fetch'); // node-fetch@2
+const fetch = require('node-fetch'); // make sure node-fetch@2 is installed
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Serve static frontend files
 app.use(express.static('public'));
 
-// GraphQL API endpoint
+// GraphQL endpoint
 const url = 'https://emma.mav.hu/otp2-backend/otp/routers/default/index/graphql';
 
-// Timetables query
+// TIMETABLES_QUERY (your full query, unchanged)
 const TIMETABLES_QUERY = {
   query: `
     {
@@ -63,7 +62,7 @@ const TIMETABLES_QUERY = {
 let latestData = null;
 let lastUpdated = null;
 
-// Fetch timetables from API
+// Fetch timetables
 async function fetchTimetables() {
   try {
     const res = await fetch(url, {
@@ -86,14 +85,13 @@ async function fetchTimetables() {
   }
 }
 
-// Initial fetch
+// Initial fetch + interval
 fetchTimetables();
-
-// Refresh every 60 seconds
 setInterval(fetchTimetables, 60 * 1000);
 
 // API endpoint
 app.get('/api/timetables', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store'); // prevent browser caching
   if (latestData) {
     res.json({
       timestamp: lastUpdated,
