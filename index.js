@@ -2,26 +2,29 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 
-// Make sure public directory exists
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Root route for health check
+app.get('/', (req, res) => {
+  res.send('Backend is running 🚂. Go to /timetables.json for data.');
+});
+
+// Ensure public directory exists
 const publicDir = path.join(__dirname, 'public');
 if (!fs.existsSync(publicDir)) {
   fs.mkdirSync(publicDir, { recursive: true });
 }
 
-const app = express();
-const port = process.env.PORT || 3000;
-
+// Serve public folder at root
 app.use(express.static(publicDir));
 
-app.get('/', (req, res) => {
-  res.send('Backend is running 🚂');
-});
-
+// Start server listening on 0.0.0.0 (required for Railway)
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running at ${port}`);
 });
 
-// ----- GraphQL query -----
+// ----- GraphQL setup -----
 const url = 'https://emma.mav.hu//otp2-backend/otp/routers/default/index/graphql';
 
 const TIMES = {
@@ -88,26 +91,29 @@ function timetables() {
   })
     .then(res => {
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-      return res.text(); // read as text first
+      return res.text();
     })
     .then(text => {
       const size = Buffer.byteLength(text, 'utf8') / 1000;
       const data = JSON.parse(text);
-
       const filePath = path.join(publicDir, 'timetables.json');
+
       fs.writeFile(filePath, JSON.stringify(data, null, 2), err => {
-        if (err) {
-          console.error('timetables write ERROR:', err);
-        } else {
-          console.log(`timetables OK, downloaded ${size.toFixed(2)} kB`);
-        }
+        if (err) console.error('timetables write ERROR:', err);
+        else console.log(`timetables OK, downloaded ${size.toFixed(2)} kB`);
       });
     })
     .catch(err => {
       console.error('TIMES Request error:', err);
+      // fallback: create empty JSON if write fails
+      const filePath = path.join(publicDir, 'timetables.json');
+      if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, JSON.stringify({ data: [] }, null, 2));
+        console.log('Fallback empty timetables.json created');
+      }
     });
 }
 
-// Run immediately + repeat every 60s
+// Run immediately + every 60s
 timetables();
 setInterval(timetables, 60 * 1000);
