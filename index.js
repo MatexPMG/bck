@@ -6,103 +6,104 @@ const port = process.env.PORT || 3000;
 
 app.use(express.static('public'));
 
-// GraphQL endpoint
-const url = 'https://emma.mav.hu/otp2-backend/otp/routers/default/index/graphql';
+app.listen(port, () => {
+  console.log(`Server running at ${port}`);
+});
 
-// TIMETABLES_QUERY (your full query, unchanged)
-const TIMETABLES_QUERY = {
-  query: `
-    {
-      vehiclePositions(
-        swLat: 45.74573822516341,
-        swLon: 16.21031899279769,
-        neLat: 48.56368661139524,
-        neLon: 22.906741803509043,
-        modes: [RAIL, TRAMTRAIN]
-      ) {
-        vehicleId
-        lat
-        lon
-        heading
-        speed
-        lastUpdated
-        nextStop {
-          arrivalDelay
+//lekerdezes
+const fs = require('fs');
+const fetch = require('node-fetch');  // works with node-fetch@2
+
+const url = 'https://emma.mav.hu//otp2-backend/otp/routers/default/index/graphql'; // replace with your real endpoint
+
+const TIMES = {
+query: `
+{
+  vehiclePositions(
+    swLat: 45.74573822516341,
+    swLon: 16.21031899279769,
+    neLat: 48.56368661139524,
+    neLon: 22.906741803509043,
+    modes: [RAIL, TRAMTRAIN]
+  ) {
+    vehicleId
+    lat
+    lon
+    heading
+    speed
+    lastUpdated
+    nextStop {
+      arrivalDelay
+    }
+    trip {
+      alerts(types: [ROUTE, TRIP]) {
+        alertDescriptionText
+      }
+
+      tripShortName
+      tripHeadsign
+      
+      wheelchairAccessible
+      bikesAllowed
+
+      route {
+        longName
+      }
+
+      stoptimes {
+        stop {
+          name
+          lat
+          lon
+          platformCode
         }
-        trip {
-          alerts(types: [ROUTE, TRIP]) {
-            alertDescriptionText
-          }
-          tripShortName
-          tripHeadsign
-          wheelchairAccessible
-          bikesAllowed
-          route { longName }
-          stoptimes {
-            stop {
-              name
-              lat
-              lon
-              platformCode
-            }
-            scheduledArrival
-            arrivalDelay
-            scheduledDeparture
-            departureDelay
-          }
-          tripGeometry { points }
-        }
+        scheduledArrival
+        arrivalDelay
+        scheduledDeparture
+        departureDelay
+      }
+      tripGeometry {
+        points
       }
     }
-  `,
-  variables: {}
-};
-
-// In-memory cache
-let latestData = null;
-let lastUpdated = null;
-
-// Fetch timetables
-async function fetchTimetables() {
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(TIMETABLES_QUERY)
-    });
-
-    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-
-    const data = await res.json();
-    latestData = data;
-    lastUpdated = new Date().toISOString();
-    console.log(`[${lastUpdated}] Timetables updated`);
-  } catch (err) {
-    console.error('Error fetching timetables:', err);
   }
 }
+`,
+variables: {}
+};
 
-// Initial fetch + interval
-fetchTimetables();
-setInterval(fetchTimetables, 60 * 1000);
+function timetables() {
 
-// API endpoint
-app.get('/api/timetables', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store'); // prevent browser caching
-  if (latestData) {
-    res.json({
-      timestamp: lastUpdated,
-      data: latestData
+  fetch(url, {
+  method: 'POST',
+  headers: {
+    'User-Agent': 'Mozilla/5.0',
+    'access-control-allow-origin': 'https://emma.mav.hu',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(TIMES)
+  })
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      return res.text(); // Read as text first so we can measure size
+    })
+    .then(text => {
+      const size = (Buffer.byteLength(text, 'utf8'))/1000;
+      const data = JSON.parse(text); // Now safely parse it
+
+      fs.writeFile('public/timetables.json', JSON.stringify(data, null, 2), err => {
+        if (err) {
+          console.error('timetables write ERROR:', err);
+        } else {
+          console.log(`timetables OK, downloaded ${size} kB`);
+        }
+      });
+    })
+    .catch(err => {
+      console.error('TIMES Request error:', err);
     });
-  } else {
-    res.status(503).json({ error: 'Data not available yet' });
-  }
-});
+}
 
-// Start server
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
+timetables();
+
+setInterval(timetables, 60*1000);
