@@ -91,7 +91,7 @@ function timetables() {
       const size = (Buffer.byteLength(text, 'utf8'))/1000;
       const data = JSON.parse(text); // Now safely parse it
 
-      fs.writeFile('/public/timetables.json', JSON.stringify(data, null, 2), err => {
+      fs.writeFile('public/timetables.json', JSON.stringify(data, null, 2), err => {
         if (err) {
           console.error('timetables write ERROR:', err);
         } else {
