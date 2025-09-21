@@ -12,7 +12,6 @@ app.listen(port, () => {
 
 //lekerdezes
 const fs = require('fs');
-const fetch = require('node-fetch');  // works with node-fetch@2
 
 const url = 'https://emma.mav.hu//otp2-backend/otp/routers/default/index/graphql'; // replace with your real endpoint
 
