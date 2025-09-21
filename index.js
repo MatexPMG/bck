@@ -1,101 +1,101 @@
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
 
-if (!fs.existsSync('public')) {
-  fs.mkdirSync('public');
+// Make sure public directory exists
+const publicDir = path.join(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
 }
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(express.static('public'));
+app.use(express.static(publicDir));
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running at ${port}`);
 });
 
-const url = 'https://emma.mav.hu//otp2-backend/otp/routers/default/index/graphql'; // replace with your real endpoint
+// ----- GraphQL query -----
+const url = 'https://emma.mav.hu//otp2-backend/otp/routers/default/index/graphql';
 
 const TIMES = {
-query: `
-{
-  vehiclePositions(
-    swLat: 45.74573822516341,
-    swLon: 16.21031899279769,
-    neLat: 48.56368661139524,
-    neLon: 22.906741803509043,
-    modes: [RAIL, TRAMTRAIN]
-  ) {
-    vehicleId
-    lat
-    lon
-    heading
-    speed
-    lastUpdated
-    nextStop {
-      arrivalDelay
-    }
-    trip {
-      alerts(types: [ROUTE, TRIP]) {
-        alertDescriptionText
-      }
-
-      tripShortName
-      tripHeadsign
-      
-      wheelchairAccessible
-      bikesAllowed
-
-      route {
-        longName
-      }
-
-      stoptimes {
-        stop {
-          name
-          lat
-          lon
-          platformCode
-        }
-        scheduledArrival
+  query: `
+  {
+    vehiclePositions(
+      swLat: 45.74573822516341,
+      swLon: 16.21031899279769,
+      neLat: 48.56368661139524,
+      neLon: 22.906741803509043,
+      modes: [RAIL, TRAMTRAIN]
+    ) {
+      vehicleId
+      lat
+      lon
+      heading
+      speed
+      lastUpdated
+      nextStop {
         arrivalDelay
-        scheduledDeparture
-        departureDelay
       }
-      tripGeometry {
-        points
+      trip {
+        alerts(types: [ROUTE, TRIP]) {
+          alertDescriptionText
+        }
+        tripShortName
+        tripHeadsign
+        wheelchairAccessible
+        bikesAllowed
+        route {
+          longName
+        }
+        stoptimes {
+          stop {
+            name
+            lat
+            lon
+            platformCode
+          }
+          scheduledArrival
+          arrivalDelay
+          scheduledDeparture
+          departureDelay
+        }
+        tripGeometry {
+          points
+        }
       }
     }
   }
-}
-`,
-variables: {}
+  `,
+  variables: {}
 };
 
+// ----- Fetch timetables -----
 function timetables() {
-
   fetch(url, {
-  method: 'POST',
-  headers: {
-    'User-Agent': 'Mozilla/5.0',
-    'access-control-allow-origin': 'https://emma.mav.hu',
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify(TIMES)
+    method: 'POST',
+    headers: {
+      'User-Agent': 'Mozilla/5.0',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(TIMES)
   })
     .then(res => {
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-      return res.text(); // Read as text first so we can measure size
+      return res.text(); // read as text first
     })
     .then(text => {
-      const size = (Buffer.byteLength(text, 'utf8'))/1000;
-      const data = JSON.parse(text); // Now safely parse it
+      const size = Buffer.byteLength(text, 'utf8') / 1000;
+      const data = JSON.parse(text);
 
-      fs.writeFile('public/timetables.json', JSON.stringify(data, null, 2), err => {
+      const filePath = path.join(publicDir, 'timetables.json');
+      fs.writeFile(filePath, JSON.stringify(data, null, 2), err => {
         if (err) {
           console.error('timetables write ERROR:', err);
         } else {
-          console.log(`timetables OK, downloaded ${size} kB`);
+          console.log(`timetables OK, downloaded ${size.toFixed(2)} kB`);
         }
       });
     })
@@ -104,6 +104,6 @@ function timetables() {
     });
 }
 
+// Run immediately + repeat every 60s
 timetables();
-
-setInterval(timetables, 60*1000);
+setInterval(timetables, 60 * 1000);
