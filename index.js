@@ -1,5 +1,9 @@
 const express = require('express');
-const fetch = require('node-fetch'); // make sure node-fetch@2 is installed
+const fs = require('fs');
+
+if (!fs.existsSync('public')) {
+  fs.mkdirSync('public');
+}
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -9,9 +13,6 @@ app.use(express.static('public'));
 app.listen(port, () => {
   console.log(`Server running at ${port}`);
 });
-
-//lekerdezes
-const fs = require('fs');
 
 const url = 'https://emma.mav.hu//otp2-backend/otp/routers/default/index/graphql'; // replace with your real endpoint
 
