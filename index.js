@@ -13,6 +13,10 @@ const port = process.env.PORT || 3000;
 
 app.use(express.static(publicDir));
 
+app.get('/', (req, res) => {
+  res.send('Backend is running 🚂');
+});
+
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running at ${port}`);
 });
